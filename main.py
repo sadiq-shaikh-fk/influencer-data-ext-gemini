@@ -110,7 +110,7 @@ def generate_json(input_data: ChannelDataInput):
                 try:
                     parsed_json = json.loads(cleaned)
                     return {
-                        "json_result": parsed_json,
+                        "output": parsed_json,
                         "input_data": channel_dict
                     }
 
