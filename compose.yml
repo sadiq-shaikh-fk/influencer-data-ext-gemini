@@ -1,0 +1,11 @@
+services:
+  gemini-api:
+    build: .
+    container_name: gemini-api
+    ports:
+      - "8500:8500"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    restart: unless-stopped

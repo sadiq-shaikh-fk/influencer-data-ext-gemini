@@ -1,0 +1,74 @@
+Convert the following YouTube channel data into JSON format for the influencers table. Use only the relevant columns and apply the data mapping rules from the system prompt.
+Source Data Columns to Use:
+channel_id → inf_pk_id
+channel_title → Search for real name first → inf_name
+channel_desc → Extract email and phone → inf_email, inf_phone1
+channel_desc + channel_keywords + channel_summary → Predict gender/city → inf_gender, inf_city
+channel_country → Base location context for city prediction
+yt_channel_id → (reference for platform linkage)
+channel_publishedat → (account age context)
+Required Output Format:
+json[
+{
+"inf_name": "real_name_from_search_or_cleaned_channel_title",
+"inf_status": "pending_verification",
+"inf_verification_status": "unverified",
+"inf_primary_platform_id": 1,
+"inf_pk_id": channel_id_value,
+"inf_email": "extracted_email_or_null",
+"inf_phone1": "extracted_phone_or_null",
+"inf_phone2": null,
+"inf_gender": "predicted_gender_or_null_if_confidence_low",
+"inf_city": "predicted_city_or_null_if_confidence_low",
+"inf_billing_address": null,
+"inf_shipping_address": null,
+"created_by": "data_import",
+"modified_by": "data_import",
+"is_deleted": false
+}
+]
+Channel Data:
+{
+"channel_id": {channel_id},
+"yt_channel_id": {yt_channel_id},
+"channel_title": {channel_title},
+"channel_desc": {channel_desc},
+"channel_publishedat": {channel_publishedat},
+"channel_country": {channel_country},
+"channel_keywords": {channel_keywords}
+}
+
+
+Instructions:
+STEP 1 - Real Name Search: For each channel_title, perform a web search:
+Search for "[channel_title] real name" or "[channel_title] YouTuber real name"
+Look for biographical information about the person behind the channel
+Examples: "CarryMinati real name" → "Ajey Nagar", "MrBeast real name" → "Jimmy Donaldson"
+If found: Use real name for inf_name
+If NOT found: Use cleaned channel_title for inf_name
+STEP 2 - Contact Extraction: For each channel_desc, extract contact information:
+Email: Look for email patterns (contains @, valid domains)
+Phone: Look for phone patterns (+91, Indian mobile numbers, international formats)
+Common locations: "Business inquiries:", "Contact:", "Email:", "For collaborations:"
+If found: Use extracted values for inf_email and inf_phone1
+If NOT found: Set to null
+STEP 3 - Gender Prediction: Analyze all available data for gender indicators:
+Sources: Real name, channel_desc, channel_keywords, channel_summary
+Indicators: Name patterns, pronouns, content themes, explicit mentions
+Score confidence (0.0 to 1.0) based on strength of evidence
+If confidence > 0.5: Use predicted gender ("Male", "Female", "Other")
+If confidence ≤ 0.5: Set to null
+STEP 4 - City Prediction: Analyze location indicators:
+Base context: Use channel_country as starting point
+Sources: channel_desc, channel_keywords, channel_summary
+Indicators: "Based in [city]", "[city] based", local references, area mentions
+Score confidence (0.0 to 1.0) based on explicitness of location mentions
+If confidence > 0.5: Use predicted city name (Title Case format)
+If confidence ≤ 0.5: Set to null
+Process each channel record from the provided data
+Map the channel_id to inf_pk_id for platform reference
+Set inf_primary_platform_id to the appropriate YouTube platform ID
+Apply all default values as specified in the system prompt
+Return ONLY the JSON array - no additional text or formatting
+Important: Be conservative with predictions. Only include gender/city when you have strong, clear evidence (confidence > 0.5).
+Important: Ensure the JSON is valid and ready for direct database insertion into the influencers table.
