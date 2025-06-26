@@ -56,6 +56,8 @@ class ChannelDataInput(BaseModel):
     channel_publishedat: str
     channel_country: str
     channel_keywords: str
+    channel_summary: str
+
 
 # Rotate to the next API key
 def rotate_key():

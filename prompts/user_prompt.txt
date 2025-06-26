@@ -36,8 +36,8 @@ Channel Data:
 "channel_publishedat": {channel_publishedat},
 "channel_country": {channel_country},
 "channel_keywords": {channel_keywords}
+"channel_summary": {channel_summary}
 }
-
 
 Instructions:
 STEP 1 - Real Name Search: For each channel_title, perform a web search:
