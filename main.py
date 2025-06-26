@@ -112,8 +112,8 @@ def generate_json(input_data: ChannelDataInput):
                 try:
                     parsed_json = json.loads(cleaned)
                     return {
-                        "output": parsed_json,
-                        "input_data": channel_dict
+                        "output": parsed_json
+                        
                     }
 
                 except json.JSONDecodeError as e:
