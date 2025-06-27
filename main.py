@@ -95,7 +95,7 @@ def generate_json(input_data: ChannelDataInput):
         payload = {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-            "tools": [{"urlContext": {}}],
+            "tools": [{"urlContext": {}}],  # Optional URL context
             "generationConfig": {"responseMimeType": "text/plain"}
         }
 
@@ -136,9 +136,11 @@ def generate_json(input_data: ChannelDataInput):
     if not merged_result:
         raise HTTPException(status_code=502, detail="Model did not return valid response after retries.")
 
+    # Add country to result
+    merged_result["channel_country"] = input_data.channel_country
+
     return {
-        "json_result": [merged_result],
-        "input_data": channel_dict
+        "json_result": [merged_result]
     }
 
 # ---------- Health Check ----------

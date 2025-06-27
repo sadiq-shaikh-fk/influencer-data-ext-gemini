@@ -22,8 +22,8 @@ json[
 "inf_city": "predicted_city_or_null_if_confidence_low",
 "inf_billing_address": null,
 "inf_shipping_address": null,
-"created_by": "data_import",
-"modified_by": "data_import",
+"created_by": "n8n-gemini-2.0-Flash",
+"modified_by": "n8n-gemini-2.0-Flash",
 "is_deleted": false
 }
 ]
@@ -44,7 +44,8 @@ STEP 1 - Real Name Search: For each channel_title, perform a web search:
 Search for "[channel_title] real name" or "[channel_title] YouTuber real name"
 Look for biographical information about the person behind the channel
 Examples: "CarryMinati real name" → "Ajey Nagar", "MrBeast real name" → "Jimmy Donaldson"
-If found: Use real name for inf_name
+If found: Use real name for inf_name 
+Final inf_name must always be in English only
 If NOT found: Use cleaned channel_title for inf_name
 STEP 2 - Contact Extraction: For each channel_desc, extract contact information:
 Email: Look for email patterns (contains @, valid domains)
