@@ -128,6 +128,7 @@ def generate_json(input_data: ChannelDataInput):
     user_prompt_base = f"{USER_PROMPT_TEMPLATE}\n\n{cities_context}\n\nChannel Data:\n{channel_json_block}"
     merged_result = {}
     best_score = -1
+    total_duration = 0.0
 
     for attempt in range(1, 4):
         api_key = get_current_key()
@@ -140,7 +141,8 @@ def generate_json(input_data: ChannelDataInput):
                 "\n\nRetry reasoning and try to infer gender and city if possible. "
                 "You may guess gender based on the name (e.g., 'Pallavi' is usually Female). "
                 "For city, infer from description, language, country, or context if possible. "
-                "IMPORTANT: City must exist in the provided cities dataset. "
+                "IMPORTANT: Use a city from the provided dataset if a good match exists. "
+                "BUT if your best guess city is not found in the dataset, still include it in the output and mark it as unverified (add 'inf_city_verified': false in the JSON). "
                 "Return only valid JSON."
             )
 
@@ -159,6 +161,7 @@ def generate_json(input_data: ChannelDataInput):
             start = time.time()
             res = requests.post(url, headers=headers, json=payload)
             duration = round(time.time() - start, 2)
+            total_duration += duration
 
             if res.status_code != 200:
                 logger.warning(f"[{route}] ❌ Gemini HTTP {res.status_code} | {key_info} | {res.text.strip()}")
@@ -168,14 +171,21 @@ def generate_json(input_data: ChannelDataInput):
             raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
             cleaned = re.sub(r"```json|```", "", raw_text).strip()
             parsed = json.loads(cleaned)[0]
+            # Fallback: Ensure ig_username exists and is a string
+            if "ig_username" not in parsed or parsed["ig_username"] is None:
+                parsed["ig_username"] = ""
+            elif parsed["ig_username"].startswith("@"):
+                parsed["ig_username"] = parsed["ig_username"][1:]
 
             # Validate city against dataset
             predicted_city = parsed.get("inf_city")
             if predicted_city and not CITIES_DATA.empty:
-                city_exists = CITIES_DATA['cityName'].str.contains(predicted_city, case=False, na=False).any()
+                city_exists = CITIES_DATA['cityName'].str.lower().eq(predicted_city.lower()).any()
                 if not city_exists:
-                    logger.warning(f"[{route}] ⚠️ Predicted city '{predicted_city}' not found in dataset, setting to null")
-                    parsed["inf_city"] = None
+                    logger.warning(f"[{route}] ⚠️ Predicted city '{predicted_city}' not found in dataset, but returning it as unverified.")
+                    parsed["inf_city_verified"] = False  # Optional extra metadata
+                else:
+                    parsed["inf_city_verified"] = True  # Optional: mark it verified
 
             gender_ok = parsed.get("inf_gender") not in (None, "", "null")
             city_ok = parsed.get("inf_city") not in (None, "", "null")
@@ -199,6 +209,9 @@ def generate_json(input_data: ChannelDataInput):
 
     # Add country to result
     merged_result["channel_country"] = input_data.channel_country
+
+    # display total duration and attempts
+    logger.info(f"[{route}] 🟢 Completed in {round(total_duration, 2)}s across {attempt} attempt(s)")
 
     return {
         "json_result": [merged_result]

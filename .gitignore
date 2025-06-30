@@ -1,2 +1,4 @@
 # .gitignore for influencer-data-ext-gemini project
 __pycache__/
+GEMINI_API_KEYS.txt
+.env

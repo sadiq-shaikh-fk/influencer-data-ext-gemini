@@ -7,6 +7,7 @@ channel_desc + channel_keywords + channel_summary → Predict gender/city → in
 channel_country → Base location context for city prediction
 yt_channel_id → (reference for platform linkage)
 channel_publishedat → (account age context)
+
 Required Output Format:
 json[
 {
@@ -24,9 +25,11 @@ json[
 "inf_shipping_address": null,
 "created_by": "n8n-gemini-2.0-Flash",
 "modified_by": "n8n-gemini-2.0-Flash",
-"is_deleted": false
+"is_deleted": false,
+"ig_username": "extracted_username_or_empty_string"
 }
 ]
+
 Channel Data:
 {
 "channel_id": {channel_id},
@@ -47,18 +50,30 @@ Examples: "CarryMinati real name" → "Ajey Nagar", "MrBeast real name" → "Jim
 If found: Use real name for inf_name 
 Final inf_name must always be in English only
 If NOT found: Use cleaned channel_title for inf_name
+
 STEP 2 - Contact Extraction: For each channel_desc, extract contact information:
 Email: Look for email patterns (contains @, valid domains)
 Phone: Look for phone patterns (+91, Indian mobile numbers, international formats)
 Common locations: "Business inquiries:", "Contact:", "Email:", "For collaborations:"
 If found: Use extracted values for inf_email and inf_phone1
 If NOT found: Set to null
+
+STEP 2.1 - Instagram Handle Extraction: For each channel_desc, extract Instagram handle:
+Look for patterns like:
+- "Instagram ID: @username"
+- "Follow me on Instagram @username"
+- "@username" in the context of Instagram
+If found: extract username (strip '@') and return as ig_username  
+If not found: set ig_username to an empty string ("")
+Examples: "Instagram ID: @Akasheyess" → "Akasheyess"
+
 STEP 3 - Gender Prediction: Analyze all available data for gender indicators:
 Sources: Real name, channel_desc, channel_keywords, channel_summary
 Indicators: Name patterns, pronouns, content themes, explicit mentions
 Score confidence (0.0 to 1.0) based on strength of evidence
 If confidence > 0.5: Use predicted gender ("Male", "Female", "Other")
 If confidence ≤ 0.5: Set to null
+
 STEP 4 - City Prediction: Analyze location indicators:
 Base context: Use channel_country as starting point
 Sources: channel_desc, channel_keywords, channel_summary

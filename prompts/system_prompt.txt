@@ -62,6 +62,8 @@ If confidence ≤ 0.5: Set to null
 inf_pk_id: Use channel_id as the platform-specific identifier
 inf_primary_platform_id: Set to YouTube platform ID (specify this value)
 
+ig_username: Extract from channel_desc if Instagram handle is mentioned, otherwise return as "".
+
 Default Values to Apply:
 
 inf_status: "pending_verification"
