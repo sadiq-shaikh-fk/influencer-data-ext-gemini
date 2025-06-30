@@ -2,6 +2,7 @@ import os
 import json
 import re
 import requests
+import pandas as pd
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -22,6 +23,22 @@ API_KEYS = os.getenv("GEMINI_API_KEYS", "").split(",")
 API_KEYS = [k.strip() for k in API_KEYS if k.strip()]
 current_key_index = 0
 ACCESS_KEY = os.getenv("APP_ACCESS_KEY")
+
+# ---------- Load CSV data at startup ----------
+def load_cities_data():
+    try:
+        cities_df = pd.read_csv("data/cities.csv")
+        logger.info(f"✅ Loaded {len(cities_df)} cities from dataset")
+        return cities_df
+    except FileNotFoundError:
+        logger.error("❌ cities.csv not found in data/ directory")
+        return pd.DataFrame()
+    except Exception as e:
+        logger.error(f"❌ Error loading cities.csv: {str(e)}")
+        return pd.DataFrame()
+
+# Load cities data globally
+CITIES_DATA = load_cities_data()
 
 # ---------- Load prompt files ----------
 def load_prompt(path: str) -> str:
@@ -62,6 +79,39 @@ def rotate_key():
 def get_current_key():
     return API_KEYS[current_key_index]
 
+# ---------- Prepare cities context for prompt ----------
+def prepare_cities_context(channel_country: str) -> str:
+    if CITIES_DATA.empty:
+        return "No cities dataset available."
+    
+    # Filter cities by country if possible
+    country_cities = CITIES_DATA[CITIES_DATA['countryCode'] == channel_country]
+    
+    if len(country_cities) == 0:
+        # If no cities found for specific country, use top 100 cities globally
+        sample_cities = CITIES_DATA.nlargest(100, 'population')
+    else:
+        # Use cities from the specific country + top global cities for context
+        top_global = CITIES_DATA.nlargest(50, 'population')
+        sample_cities = pd.concat([country_cities, top_global]).drop_duplicates()
+    
+    # Convert to compact format for prompt
+    cities_list = []
+    for _, row in sample_cities.head(200).iterrows():  # Limit to prevent prompt bloat
+        cities_list.append(f"{row['cityName']}, {row['countryName']} ({row['countryCode']})")
+    
+    cities_context = f"""
+AVAILABLE CITIES DATASET REFERENCE (Sample of {len(sample_cities)} cities):
+{'; '.join(cities_list)}
+
+VALIDATION RULES:
+- City predictions MUST match cities from this dataset
+- Prioritize cities with countryCode matching channel_country: {channel_country}
+- Use exact cityName spelling from dataset
+- If no clear match found in dataset, set inf_city to null
+"""
+    return cities_context
+
 # ---------- Main Endpoint ----------
 @app.post("/extract-influencer-data", dependencies=[Depends(verify_access)], tags=["Routes"])
 def generate_json(input_data: ChannelDataInput):
@@ -71,9 +121,11 @@ def generate_json(input_data: ChannelDataInput):
 
     channel_dict = input_data.model_dump()
     channel_json_block = json.dumps(channel_dict, indent=4)
-    input_size = len(channel_json_block.encode("utf-8"))
-
-    user_prompt_base = f"{USER_PROMPT_TEMPLATE}\n\nChannel Data:\n{channel_json_block}"
+    
+    # Add cities context to the prompt
+    cities_context = prepare_cities_context(input_data.channel_country)
+    
+    user_prompt_base = f"{USER_PROMPT_TEMPLATE}\n\n{cities_context}\n\nChannel Data:\n{channel_json_block}"
     merged_result = {}
     best_score = -1
 
@@ -88,6 +140,7 @@ def generate_json(input_data: ChannelDataInput):
                 "\n\nRetry reasoning and try to infer gender and city if possible. "
                 "You may guess gender based on the name (e.g., 'Pallavi' is usually Female). "
                 "For city, infer from description, language, country, or context if possible. "
+                "IMPORTANT: City must exist in the provided cities dataset. "
                 "Return only valid JSON."
             )
 
@@ -115,6 +168,14 @@ def generate_json(input_data: ChannelDataInput):
             raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
             cleaned = re.sub(r"```json|```", "", raw_text).strip()
             parsed = json.loads(cleaned)[0]
+
+            # Validate city against dataset
+            predicted_city = parsed.get("inf_city")
+            if predicted_city and not CITIES_DATA.empty:
+                city_exists = CITIES_DATA['cityName'].str.contains(predicted_city, case=False, na=False).any()
+                if not city_exists:
+                    logger.warning(f"[{route}] ⚠️ Predicted city '{predicted_city}' not found in dataset, setting to null")
+                    parsed["inf_city"] = None
 
             gender_ok = parsed.get("inf_gender") not in (None, "", "null")
             city_ok = parsed.get("inf_city") not in (None, "", "null")
@@ -146,4 +207,21 @@ def generate_json(input_data: ChannelDataInput):
 # ---------- Health Check ----------
 @app.get("/", dependencies=[Depends(verify_access)], tags=["Routes"])
 def root():
-    return {"status": "Fame Keeda Gemini API is running", "model": "gemini-2.0-flash"}
+    cities_count = len(CITIES_DATA) if not CITIES_DATA.empty else 0
+    return {
+        "status": "Fame Keeda Gemini API is running", 
+        "model": "gemini-2.0-flash",
+        "cities_loaded": cities_count
+    }
+
+# ---------- Optional: Endpoint to check cities data ----------
+@app.get("/cities/stats", dependencies=[Depends(verify_access)], tags=["Debug"])
+def cities_stats():
+    if CITIES_DATA.empty:
+        return {"error": "No cities data loaded"}
+    
+    return {
+        "total_cities": len(CITIES_DATA),
+        "countries": CITIES_DATA['countryCode'].nunique(),
+        "sample_cities": CITIES_DATA.head(5)[['cityName', 'countryName', 'countryCode']].to_dict('records')
+    }
