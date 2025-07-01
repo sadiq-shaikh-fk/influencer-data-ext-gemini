@@ -26,7 +26,11 @@ json[
 "created_by": "n8n-gemini-2.0-Flash",
 "modified_by": "n8n-gemini-2.0-Flash",
 "is_deleted": false,
-"ig_username": "extracted_username_or_empty_string"
+"ig_username": "extracted_username_or_empty_string",
+"tw_username": "extracted_username_or_empty_string",
+"t_username": "extracted_username_or_empty_string",
+"t_phone": "extracted_phone_or_empty_string",
+"ln_username": "extracted_username_or_empty_string"
 }
 ]
 
@@ -58,14 +62,31 @@ Common locations: "Business inquiries:", "Contact:", "Email:", "For collaboratio
 If found: Use extracted values for inf_email and inf_phone1
 If NOT found: Set to null
 
-STEP 2.1 - Instagram Handle Extraction: For each channel_desc, extract Instagram handle:
-Look for patterns like:
-- "Instagram ID: @username"
-- "Follow me on Instagram @username"
-- "@username" in the context of Instagram
-If found: extract username (strip '@') and return as ig_username  
-If not found: set ig_username to an empty string ("")
-Examples: "Instagram ID: @Akasheyess" → "Akasheyess"
+STEP 2.1 - Social Media Handle Extraction:
+
+Extract all social media usernames and links found in the description.
+
+Look for platform-specific mentions like:
+- "Instagram ID: @username" or "Follow me on Instagram @username"
+- "Telegram: @username" or "For updates, join Telegram @username"
+- "Twitter: @username" or "Follow on X @username"
+- "LinkedIn: linkedin.com/in/username" or "LinkedIn profile"
+- Any phone number listed explicitly for Telegram (return as t_phone)
+
+When identifying usernames:
+- Only extract a username when you are confident of the platform context (e.g. if "Telegram" is mentioned, assign to t_username).
+- If no platform is mentioned, **do not assign** the username to any field.
+- If multiple platforms are mentioned, assign them to their respective fields.
+
+Output format:
+- "ig_username" → Instagram username (or "" if not found)
+- "tw_username" → Twitter/X handle
+- "t_username" → Telegram username
+- "t_phone" → Telegram phone number
+- "ln_username" → LinkedIn username
+If not found, assign "" (empty string).
+
+Do not guess the platform from @handle alone. Use platform mentions in the text as context.
 
 STEP 3 - Gender Prediction: Analyze all available data for gender indicators:
 Sources: Real name, channel_desc, channel_keywords, channel_summary

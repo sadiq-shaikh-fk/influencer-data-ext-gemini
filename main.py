@@ -24,6 +24,10 @@ API_KEYS = [k.strip() for k in API_KEYS if k.strip()]
 current_key_index = 0
 ACCESS_KEY = os.getenv("APP_ACCESS_KEY")
 
+if not API_KEYS:
+    logger.critical("❌ No Gemini API keys found. Check .env file.")
+    raise RuntimeError("Missing GEMINI_API_KEYS")
+
 # ---------- Load CSV data at startup ----------
 def load_cities_data():
     try:
@@ -163,12 +167,19 @@ def generate_json(input_data: ChannelDataInput):
             duration = round(time.time() - start, 2)
             total_duration += duration
 
+            # Handle potential issues with the response structure
+            try:
+                raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
+            except (KeyError, IndexError, ValueError) as e:
+                logger.error(f"[{route}] ❌ Invalid Gemini response structure: {str(e)}")
+                rotate_key()
+                continue
+
             if res.status_code != 200:
                 logger.warning(f"[{route}] ❌ Gemini HTTP {res.status_code} | {key_info} | {res.text.strip()}")
                 rotate_key()
                 continue
 
-            raw_text = res.json()['candidates'][0]['content']['parts'][0]['text']
             cleaned = re.sub(r"```json|```", "", raw_text).strip()
             parsed = json.loads(cleaned)[0]
             # Fallback: Ensure ig_username exists and is a string
@@ -177,10 +188,17 @@ def generate_json(input_data: ChannelDataInput):
             elif parsed["ig_username"].startswith("@"):
                 parsed["ig_username"] = parsed["ig_username"][1:]
 
+            for field in ["tw_username", "t_username", "t_phone", "ln_username"]:
+                if field not in parsed or parsed[field] is None:
+                    parsed[field] = ""
+                elif parsed[field].startswith("@"):
+                    parsed[field] = parsed[field][1:]
+
+
             # Validate city against dataset
             predicted_city = parsed.get("inf_city")
             if predicted_city and not CITIES_DATA.empty:
-                city_exists = CITIES_DATA['cityName'].str.lower().eq(predicted_city.lower()).any()
+                city_exists = CITIES_DATA['cityName'].str.casefold().eq(predicted_city.casefold()).any()
                 if not city_exists:
                     logger.warning(f"[{route}] ⚠️ Predicted city '{predicted_city}' not found in dataset, but returning it as unverified.")
                     parsed["inf_city_verified"] = False  # Optional extra metadata

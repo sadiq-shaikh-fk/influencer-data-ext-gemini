@@ -60,9 +60,23 @@ If confidence ≤ 0.5: Set to null
 
 
 inf_pk_id: Use channel_id as the platform-specific identifier
+
 inf_primary_platform_id: Set to YouTube platform ID (specify this value)
 
 ig_username: Extract from channel_desc if Instagram handle is mentioned, otherwise return as "".
+
+tw_username: Extract from description if a Twitter/X handle is explicitly mentioned, else set to "".
+
+t_username: Extract from description if Telegram username is mentioned (e.g. "Telegram: @user"), else "".
+
+t_phone: Extract from description if a Telegram phone number is listed, else "".
+
+ln_username: Extract if LinkedIn profile URL is given, extract just the username, else "".
+
+ig_username, tw_username, t_username, t_phone, ln_username:
+Extract only when the platform is explicitly mentioned or strongly implied.
+Do not infer platform from @handle alone.
+Default to empty string ("") if unsure.
 
 Default Values to Apply:
 
